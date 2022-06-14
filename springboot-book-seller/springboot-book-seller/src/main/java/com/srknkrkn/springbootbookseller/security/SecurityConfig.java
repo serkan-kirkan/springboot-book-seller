@@ -2,9 +2,13 @@ package com.srknkrkn.springbootbookseller.security;
 
 
 
+import com.srknkrkn.springbootbookseller.model.Role;
+import com.srknkrkn.springbootbookseller.security.jwt.JwtAuthorizationFilter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.BeanIds;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
@@ -14,6 +18,7 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -24,6 +29,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class SecurityConfig extends WebSecurityConfigurerAdapter
 
 {
+    @Value("${authentication.internal-api-key}")
+    private String internalApiKey;
+
     @Autowired
     private CustomUserDetailsService userDetailsService;
 
@@ -49,8 +57,29 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter
         http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
 
         http.authorizeRequests()
-                .antMatchers("api/authentication/**").permitAll()
+                .antMatchers("/api/authentication/**").permitAll()
+                .antMatchers(HttpMethod.GET,"/api/book").permitAll()
+                .antMatchers("/api/book/**").hasRole(Role.ADMIN.name())
+                .antMatchers("/api/internal/**").hasRole(Role.SYSTEM_MANAGER.name())
                 .anyRequest().authenticated();
+
+        //jwt filter
+        //internal > jwt > auhtentication
+        http.addFilterBefore(jwtAuthorizationFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(internalApiAuthenticationFilter(),JwtAuthorizationFilter.class);
+
+    }
+
+    @Bean
+    public InternalApiAuthenticationFilter internalApiAuthenticationFilter()
+    {
+        return new InternalApiAuthenticationFilter(internalApiKey);
+    }
+
+    @Bean
+    public JwtAuthorizationFilter jwtAuthorizationFilter()
+    {
+        return new JwtAuthorizationFilter();
     }
 
     @Bean
